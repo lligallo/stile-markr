@@ -1,0 +1,6 @@
+quart==0.19.1               #web server
+sqlalchemy<2.0              #for the database
+asyncpg==0.29.0             #for the database connection asynchronous to pg
+alembic==1.13.1             #for database migration
+pydantic==1.10.11           
+psycopg2-binary==2.9.9       #for the database connection synchrnous (only used with alembic)

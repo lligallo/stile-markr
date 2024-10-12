@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  markr_devel_app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile.dev
+    volumes:
+      - ..:/workspace
+    command: sleep infinity  # Keep the container running
+    depends_on:
+      - markr_postgres
+  markr_postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: common
+      POSTGRES_USER: localuser
+      POSTGRES_PASSWORD: localpassword
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data_devel:/var/lib/postgresql/data
+      - ./postgres_config/server.crt:/var/lib/postgresql/server.crt
+      - ./postgres_config/server.key:/var/lib/postgresql/server.key
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/server.key"]
+    ports:
+      - "5433:5432"  # This is done to access the database from the host machine
+
+volumes:
+  postgres_data_devel:

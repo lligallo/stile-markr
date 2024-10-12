@@ -1,0 +1,19 @@
+FROM python:3.11
+
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get -y install zsh git adr-tools
+
+# Set the default shell to Zsh
+SHELL ["/bin/zsh", "-c"]
+
+WORKDIR /tmp
+
+ADD .devcontainer/requirements-dev.txt /tmp/
+RUN pip3 install --no-cache-dir -r requirements-dev.txt
+
+ADD ./requirements.txt /tmp/
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+RUN mkdir -p /var/log/markr/
+
+EXPOSE 8082
