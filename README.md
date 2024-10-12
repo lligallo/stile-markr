@@ -1,7 +1,3 @@
-
-# Development
-- I used .vscode. The .devcontainer is configured so the database is up and you are developing within the machine defined at .devcontainers/Dockerfile.dev
-
 # Running the project
 - required: docker and docker-compose installed
 - copy .env_template to .env
@@ -21,3 +17,9 @@ Most of my reasoning is in ADR-2, but here is a summary:
 # Comments for the Boss
 - student_number(s) -2319 and 2353- that have different names with the same id
 
+
+# Development
+- I used .vscode. The .devcontainer is configured so the database is up and you are developing within the machine defined at .devcontainers/Dockerfile.dev
+
+## Alembic 
+- Generate a migration: set -a; source .env; set +a; alembic revision --autogenerate -m "DESCRIPTION"

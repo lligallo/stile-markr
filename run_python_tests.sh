@@ -11,4 +11,9 @@ set +a
 
 export PYTHONPATH="./src:$PYTHONPATH"
 
-python3 -m unittest test/exams_analytics/empty_unit_test.py
+echo "Upgrading the database to the latest version..."
+alembic upgrade head
+echo "Database upgraded successfully."
+
+#python3 -m unittest test/exams_analytics/empty_unit_test.py
+python3 -m unittest test/exams_analytics/interface/pg_db/test_raw_import_repository_pg.py
