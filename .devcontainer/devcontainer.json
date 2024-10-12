@@ -1,0 +1,27 @@
+{
+    "name": "MarkrDevel",
+    "dockerComposeFile": "./docker-compose-devel.yml",
+    "service": "markr_devel_app",
+    "workspaceFolder": "/workspace",
+    "customizations": {
+        "vscode": {
+            "settings": { 
+                "terminal.integrated.defaultProfile.linux": "zsh",
+                "terminal.integrated.cwd": "/workspace/",
+                "remote.localPortHost": "allInterfaces"
+            },
+            "extensions": [
+                "streetsidesoftware.code-spell-checker",
+                "mhutchie.git-graph",
+                "eamodio.gitlens",
+                "ms-toolsai.jupyter",
+                "ms-python.vscode-pylance",
+                "ms-python.python",
+                "ms-azuretools.vscode-docker",
+                "ckolkman.vscode-postgres",
+                "GitHub.copilot",
+                "GitHub.copilot-chat"
+            ]
+        }
+    }
+}

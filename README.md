@@ -1,7 +1,12 @@
 
+# Development
+- I used .vscode. The .devcontainer is configured so the database is up and you are developing within the machine defined at .devcontainers/Dockerfile.dev
 
 # Running the project
-TBD
+- required: docker and docker-compose installed
+- copy .env_template to .env
+- docker-compose up         <- PENDING TO CONFIGURE THE DB with proper security
+- the http server is mapped in port 8085
 
 
 # Approach
@@ -15,5 +20,4 @@ Most of my reasoning is in ADR-2, but here is a summary:
 
 # Comments for the Boss
 - student_number(s) -2319 and 2353- that have different names with the same id
-
 
