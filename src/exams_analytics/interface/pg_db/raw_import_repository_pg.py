@@ -2,7 +2,8 @@
 import logging
 from uuid import UUID
 
-from exams_analytics.application.import_vault.raw_import_repository_abstract import RawImportRepositoryAbstract, RawImportDTO
+from exams_analytics.application.import_vault.import_dtos import RawImportDTO
+from exams_analytics.application.import_vault.raw_import_repository_abstract import RawImportRepositoryAbstract
 from exams_analytics.interface.pg_db.database_engine import DatabaseEngine
 
 from sqlalchemy.ext.asyncio import AsyncConnection

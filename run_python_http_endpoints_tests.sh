@@ -15,5 +15,6 @@ echo "Upgrading the database to the latest version..."
 alembic upgrade head
 echo "Database upgraded successfully."
 
-#python3 -m unittest test/exams_analytics/empty_unit_test.py
-python3 -m unittest test/exams_analytics/interface/pg_db/test_raw_import_repository_pg.py
+echo "THERE MUST BE AN INSTANCE OF THE HTTP SERVER RUNNING FOR THESE TESTS TO EXECUTE"
+
+python3 -m unittest test/exams_analytics/interface/scan_import/test_http_rest_facade.py

@@ -12,6 +12,7 @@ Most of my reasoning is in ADR-2, but here is a summary:
 - POSTGRESQL: It's a versatile DB. I don't have much time for the project and I know how to use it. It can aggregate 1-2 millions of rows in under one second. So it should be good to do all calculations.
 - PYTHON: Language that I know and that we can find many developers in the future to support it.
 - ASYNCIO + QUART + HYPERCORN: Allows the project to scale using tasks (not that we need now, but, again, I'm used to and I think it's more future proof than doing it with threads)
+- ALEMBIC for migrations
 - Task manager: https://github.com/users/lligallo/projects/6/views/1
 
 # Comments for the Boss
@@ -20,6 +21,10 @@ Most of my reasoning is in ADR-2, but here is a summary:
 
 # Development
 - I used .vscode. The .devcontainer is configured so the database is up and you are developing within the machine defined at .devcontainers/Dockerfile.dev
+- ./run_markr_server_local.sh -> Executes the http server with the parameters of .env file
+- ./run_markr_server.sh -> Executes the http server without loading any env variables
+- ./run_python_unit_tests.sh -> Executes some tests
+- ./run_python_http_endpoints_tests.sh -> Executes tests by calling http endpoints (full integration)
 
 ## Alembic 
 - Generate a migration: set -a; source .env; set +a; alembic revision --autogenerate -m "DESCRIPTION"
