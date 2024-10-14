@@ -21,6 +21,7 @@ Accepted
 - I will create the persistence repository that manages the bulk insert while keeping the max score.
     - I will limit the max marks you can insert, just to have it under control. I'll add some logs to be able to review if they get close
 - I will use an array from postgres to store the import_ids
+- I will do a test and make sure the test data makes sense
 
 ## Consequences
 - When inserting in bulk:
