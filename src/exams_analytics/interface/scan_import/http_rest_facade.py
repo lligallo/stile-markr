@@ -26,7 +26,7 @@ async def shutdown():
 @http_scan_import_quart.route('/check')
 async def index():
     #check there is connection with the database
-    print("Trying to connect to the database")
+    logger.info("/check: Checking connection with the database")
     try:
         engine = DatabaseEngine.get_engine()
         async with engine.begin() as conn: # type: ignore

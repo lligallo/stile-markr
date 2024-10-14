@@ -16,12 +16,12 @@ services:
       POSTGRES_DB: ${PG_DBNAME}
       POSTGRES_USER: ${PG_USER}
       POSTGRES_PASSWORD: ${PG_PASSWORD}
-      POSTGRES_HOST_AUTH_METHOD: trust        #PENDING TO BE CONFIGURED PROPERLY
+      #POSTGRES_HOST_AUTH_METHOD: trust        #PENDING TO BE CONFIGURED PROPERLY
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - .devcontainer/postgres_config/server.crt:/var/lib/postgresql/server.crt
-      - .devcontainer/postgres_config/server.key:/var/lib/postgresql/server.key
-    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/server.key"]
+    #  - .devcontainer/postgres_config/server.crt:/var/lib/postgresql/server.crt
+    #  - .devcontainer/postgres_config/server.key:/var/lib/postgresql/server.key
+    #command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/server.key"]
     ports:
       - "5434:5432"  # This is done to access the database from the host machine
 

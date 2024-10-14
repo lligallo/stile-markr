@@ -12,6 +12,7 @@ RUN mkdir -p /var/log/markr/
 
 COPY ./src /app/src
 ADD ./run_markr_server.sh /app/
+ADD ./alembic.ini /app/
 
 #note that this does not expose the port, it is just for documentation
 EXPOSE 8082
