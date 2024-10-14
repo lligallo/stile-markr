@@ -18,7 +18,6 @@ class TestBestMarksRepositoryPG(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         await BestMarksRepositoryPG._instance.engine.dispose() #type: ignore
-        pass
 
     def assert_mark_dto_equals(self, d1: MarkDTO, d2: MarkDTO):
         self.assertEqual(d1.student_id, d2.student_id, "The student_id is not the same")
@@ -184,7 +183,7 @@ class TestBestMarksRepositoryPG(unittest.IsolatedAsyncioTestCase):
             self.assertAlmostEqual(result.p50, 1, places=5)
             self.assertAlmostEqual(result.p75, 1, places=5)
             self.assertEqual(result.count, 1, "The count is not the same")
-
+    
     async def test_aggregates_100K(self):
         import_uuid = uuid.uuid1()
         num_marks = 0
