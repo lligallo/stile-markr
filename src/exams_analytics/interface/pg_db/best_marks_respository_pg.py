@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy import text as sql_text
 
 from exams_analytics.application.marks.best_marks_repository_abstract import BestMarksRepositoryAbstract
-from exams_analytics.application.marks.marks_dtos import MarkDTO
+from exams_analytics.application.marks.marks_dtos import AggregatedTestResultDTO, MarkDTO
 from exams_analytics.interface.pg_db.database_engine import DatabaseEngine
 
 logger = logging.getLogger(__name__)
@@ -173,6 +173,61 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
             conn: AsyncConnection
             return await cls.__get_maximum_mark_by_student_and_test(conn, student_id, test_id)
 
+    @classmethod
+    async def __calculate_aggregated_test_result(cls, conn: AsyncConnection, test_id: str) -> AggregatedTestResultDTO | None:
+        """
+            Using STDDEV_POP instead of STDDEV because we are using the whole population.
+        """
+        query= """
+            SELECT 
+                AVG(num_correct::float / num_questions::float) AS mean,
+                STDDEV_POP(num_correct::float / num_questions::float) AS stddev,
+                MIN(num_correct::float / num_questions::float) AS min,
+                MAX(num_correct::float / num_questions::float) AS max,
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY num_correct::float / num_questions::float) AS p25,
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY num_correct::float / num_questions::float) AS p50,
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY num_correct::float / num_questions::float) AS p75,
+                COUNT(*) AS count
+            FROM 
+                best_marks_of_student_per_test
+            WHERE
+                test_id = :test_id
+                AND num_questions > 0;
+            """ 
+        
+        result = await conn.execute(sql_text(query), {'test_id': test_id})
+        row = result.fetchone()
+        if row is None:
+            return None
+        else:
+            #check that none of the values are None
+            for i in range(8):
+                if row[i] is None:
+                    return None
+            
+            if row[7] == 0:
+                return None
+            
+            return AggregatedTestResultDTO(
+                test_id = test_id,
+                mean = row[0],
+                stddev = row[1],
+                min = row[2],
+                max = row[3],
+                p25 = row[4],
+                p50 = row[5],
+                p75 = row[6],
+                count = row[7]
+            )
+
+    @classmethod
+    async def calculate_aggregated_test_result(cls, test_id: str) -> AggregatedTestResultDTO | None:
+        instance = await cls._get_instance()
+        async with instance.engine.connect() as conn: # type: ignore
+            conn: AsyncConnection
+            return await cls.__calculate_aggregated_test_result(conn, test_id)
+    
+    
     @classmethod
     async def delete_all_rows_only_for_testing(cls):
         #only executes it if it's a test on a local dev machine

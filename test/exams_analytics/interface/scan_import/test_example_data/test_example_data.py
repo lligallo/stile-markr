@@ -1,4 +1,5 @@
 import unittest
+import json
 from unittest.mock import patch, AsyncMock
 from quart import Quart
 import csv
@@ -6,7 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from exams_analytics.application.marks.marks_dtos import MarkDTO
 from exams_analytics.interface.pg_db.best_marks_respository_pg import BestMarksRepositoryPG
 from exams_analytics.interface.pg_db.raw_import_repository_pg import RawImportRepositoryPG
+from exams_analytics.interface.results.http_results_facade import http_results_facade
 from exams_analytics.interface.scan_import.http_rest_facade import http_scan_import_quart
+
+http_scan_import_quart.register_blueprint(http_results_facade)
 
 class TestExampleData(unittest.IsolatedAsyncioTestCase):
 
@@ -14,7 +18,7 @@ class TestExampleData(unittest.IsolatedAsyncioTestCase):
         await RawImportRepositoryPG.delete_all_rows_only_for_testing()
         await BestMarksRepositoryPG.delete_all_rows_only_for_testing()
         self.client = http_scan_import_quart.test_client()
-
+        
     async def asyncTearDown(self):
         await RawImportRepositoryPG._instance.engine.dispose() #type: ignore        
 
@@ -75,7 +79,30 @@ class TestExampleData(unittest.IsolatedAsyncioTestCase):
         #let's count the marks in the database
         num_marks_in_db = await BestMarksRepositoryPG.count_all_rows()
         self.assertEqual(num_marks_in_db, num_marks_that_should_be_in_db, "The number of marks in the database is different than the expected number of marks")
-                
+
+        #let's now check the aggregated results
+        test_id = "9863"
+        response = await self.client.get(f"/results/{test_id}/aggregate")
+        self.assertEqual(response.status_code, 200)
+        text = await response.get_data(as_text=True)
+        print(f"Aggregated Results: {text}")
+        average = 50.8
+        stdev = 9.9
+        min = 30.0
+        max = 75.0
+        p25 = 45.0
+        p50 = 50.0
+        p75 = 55.0
+        count = 81
+        result = json.loads(text)
+        self.assertEqual(result["mean"], average)
+        self.assertEqual(result["stddev"], stdev)
+        self.assertEqual(result["min"], min)
+        self.assertEqual(result["max"], max)
+        self.assertEqual(result["p25"], p25)
+        self.assertEqual(result["p50"], p50)
+        self.assertEqual(result["p75"], p75)
+        self.assertEqual(result["count"], count)
 
 print("Test http facade")
 if __name__ == '__main__':

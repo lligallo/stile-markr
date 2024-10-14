@@ -6,6 +6,7 @@ import hypercorn.asyncio
 from hypercorn.config import Config
 import sys
 
+from exams_analytics.interface.results.http_results_facade import http_results_facade
 from exams_analytics.interface.scan_import.http_rest_facade import http_scan_import_quart
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ async def run_http_server_task():
     config = Config()
     port = os.getenv("HTTP_PORT_MARKR","The variable exists, it's checked when the file is loaded")
     config.bind = ["0.0.0.0:"+port]
+    http_scan_import_quart.register_blueprint(http_results_facade)
     http_scan_import_quart.config['EXPLAIN_TEMPLATE_LOADING'] = False
     logger.warning("ALERT!! This server is not secured with SSL!! should be added in the future!!")
     await hypercorn.asyncio.serve(http_scan_import_quart, config)
