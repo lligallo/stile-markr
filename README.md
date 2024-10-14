@@ -55,6 +55,18 @@ This structure allows us to separate the logic of the application from the data 
 - Generate a migration: set -a; source .env; set +a; alembic revision --autogenerate -m "DESCRIPTION"
 
 # TODO:
-- Better devOps the deployment (I'm sure there are better ways to manage the certificates, even that are only used for local development) 
 - Add documentation for the API
 - Add configuration to the logging system (now is set to the Basic one)
+
+# Thoughts on how to further scale (on aggregations)
+- Although the server as is can handle many aggregations (I haven't done performance test but, with the test_id index that is there I would expect to be able to aggregate millions with less than a second -with a quick test: in my computer takes 300ms to aggregate 1 million even restarting the PG, and when using an index to filter 1000 tests, it takes way less than 10 ms), it would be good to monitor how long it takes to do the aggregation. 
+    - I added an annotation to the calls that are done in the database so they can be easily monitored in production (log_operation). They log the time it takes for the database operations as info, and I also added a warning when the aggregation takes too long (400ms), we can then decide if we increase it or we do something. We could also monitor the slow queries, but this way we control it from the program.
+- What we can do when the aggregations are slow:
+0) Review why the query is slow. Normally the problem on the database are the inserts, not the reads. 
+1) We could use a materialized view and recalculate every few minutes. The CON is that the statistics are only updated every few minutes, and, since PG doesn't have partial updates to materialized views, each update will calculate all the statistics of all the exams in history.
+2) If it's a matter of too many writes we could create a reading replica.
+3) We could use a table with the aggregations pre-calculated. We would update it programmatically every time we receive data from an exam.
+4) And if we don't want to touch the database we could even cache the aggregations in python. That could be a problem if there is more than one instance of the python server, but if we accept that the aggregations have a delay of 5 minutes can be pretty easy to do.
+
+
+

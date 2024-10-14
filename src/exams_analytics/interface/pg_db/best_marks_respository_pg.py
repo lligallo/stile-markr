@@ -9,7 +9,7 @@ from sqlalchemy import text as sql_text
 
 from exams_analytics.application.marks.best_marks_repository_abstract import BestMarksRepositoryAbstract
 from exams_analytics.application.marks.marks_dtos import AggregatedTestResultDTO, MarkDTO, MarkWithImportIdsDTO
-from exams_analytics.interface.pg_db.database_engine import DatabaseEngine
+from exams_analytics.interface.pg_db.database_engine import DatabaseEngine, log_db_operation
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +136,7 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
             await cls.__bulk_insert_marks_chunk(conn, marks_chunk, import_vault_id)
     
     @classmethod
+    @log_db_operation(threshold_ms=200)
     async def bulk_insert_keeping_max_values_when_same_student_and_test_id(cls, marks: List[MarkDTO], import_vault_id : UUID) -> None:
         if len(marks) > cls.MAX_MARKS_TO_INSERT:
             logger.warning(f"Someone requested to insert too many marks. The maximum is {cls.MAX_MARKS_TO_INSERT}. This value was chosen as as resonable limit. If you see this message reconsider this limit.")
@@ -221,6 +222,7 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
             )
 
     @classmethod
+    @log_db_operation(threshold_ms=500)
     async def calculate_aggregated_test_result(cls, test_id: str) -> AggregatedTestResultDTO | None:
         instance = await cls._get_instance()
         async with instance.engine.connect() as conn: # type: ignore
