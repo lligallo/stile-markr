@@ -44,18 +44,11 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
         """
 
         sql_query = """
-            INSERT INTO best_marks_of_student_per_test (student_id, test_id, num_questions, num_correct, import_ids)
+            INSERT INTO best_marks_of_student_per_test (student_id, test_id, num_correct, import_ids)
             VALUES {}
             ON CONFLICT (student_id, test_id)
             DO UPDATE SET
-                num_questions = GREATEST(excluded.num_questions, best_marks_of_student_per_test.num_questions),
-                num_correct = CASE
-                    WHEN excluded.num_questions > best_marks_of_student_per_test.num_questions
-                        THEN excluded.num_correct
-                    WHEN excluded.num_questions = best_marks_of_student_per_test.num_questions
-                        THEN GREATEST(excluded.num_correct, best_marks_of_student_per_test.num_correct)
-                    ELSE best_marks_of_student_per_test.num_correct
-                END,
+                num_correct = GREATEST(excluded.num_correct, best_marks_of_student_per_test.num_correct),
                 import_ids = ARRAY(
                     SELECT DISTINCT unnest(best_marks_of_student_per_test.import_ids || excluded.import_ids)
                 )
@@ -68,11 +61,10 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
 
         index = 0
         for mark in marks_chunk:
-            placeholders.append(f"(:student_id_{index}, :test_id_{index}, :num_questions_{index}, :num_correct_{index}, :import_ids_{index})")
+            placeholders.append(f"(:student_id_{index}, :test_id_{index}, :num_correct_{index}, :import_ids_{index})")
             parameters.extend([
                 {"student_id_" + str(index): mark.student_id},
                 {"test_id_" + str(index): mark.test_id},
-                {"num_questions_" + str(index): mark.num_questions},
                 {"num_correct_" + str(index): mark.num_correct},
                 #now we add the import_id as an array
                 {"import_ids_" + str(index): [import_vault_id]}
@@ -136,6 +128,45 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
             await cls.__bulk_insert_marks_chunk(conn, marks_chunk, import_vault_id)
     
     @classmethod
+    def _generate_list_tuple_test_max_questions(cls, marks: List[MarkDTO]) -> List[tuple[str,int]]:
+        """
+            Generates a list of tuples with the test_id and the maximum number of questions for that test.
+        """
+        dict_test_max_questions : Dict[str,int] = {}
+        for mark in marks:
+            if mark.test_id in dict_test_max_questions:
+                dict_test_max_questions[mark.test_id] = max(dict_test_max_questions[mark.test_id], mark.num_questions)
+            else:
+                dict_test_max_questions[mark.test_id] = mark.num_questions
+        return [(test_id, max_questions) for test_id, max_questions in dict_test_max_questions.items()]
+    
+    @classmethod
+    async def _update_question_tests(cls, conn: AsyncConnection, list_tuple_test_max_questions: List[tuple[str,int]], import_vault_id: UUID) -> None:
+        """
+            Updates the table tests with the maximum number of questions for each test.
+            Not in batch because we don't expect to have many tests.
+        """
+
+        sql_query = """
+            INSERT INTO tests (test_id, num_questions, import_ids)
+            VALUES (:test_id, :num_questions, :import_ids)
+            ON CONFLICT (test_id)
+                DO UPDATE
+                    SET 
+                        num_questions = GREATEST(tests.num_questions, EXCLUDED.num_questions),
+                        import_ids = ARRAY(SELECT DISTINCT unnest(tests.import_ids || EXCLUDED.import_ids));                            
+            """
+        
+        for test_id, max_questions in list_tuple_test_max_questions:
+            parameters = {
+                "test_id": test_id,
+                "num_questions": max_questions,
+                "import_ids": [import_vault_id]
+            }
+            logger.debug("Executing SQL Query: %s with Parameters: %s", sql_query, parameters)
+            await conn.execute(sql_text(sql_query), parameters)
+    
+    @classmethod
     @log_db_operation(threshold_ms=200)
     async def bulk_insert_keeping_max_values_when_same_student_and_test_id(cls, marks: List[MarkDTO], import_vault_id : UUID) -> None:
         if len(marks) > cls.MAX_MARKS_TO_INSERT:
@@ -144,17 +175,22 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
         if len(marks) > cls.MAX_MARKS_TO_INSERT // 2:
             logger.warning(f"Someone requested to insert a lot of marks {cls.MAX_MARKS_TO_INSERT}. Although it is within the limit {cls.MAX_MARKS_TO_INSERT}, we may want to review this limit.")
         
+        list_tuple_test_max_questions = cls._generate_list_tuple_test_max_questions(marks)
+
         instance = await cls._get_instance()
         async with instance.engine.begin() as conn: # type: ignore
             conn: AsyncConnection
+            await cls._update_question_tests(conn, list_tuple_test_max_questions, import_vault_id)
             await cls._bulk_insert_marks(conn, marks, import_vault_id)
     
 
     @classmethod
     async def __get_maximum_mark_by_student_and_test(cls, conn: AsyncConnection, student_id: str, test_id: str) -> None | MarkWithImportIdsDTO:
         query = """
-            SELECT student_id, test_id, num_questions, num_correct, import_ids FROM best_marks_of_student_per_test
-            WHERE student_id = :student_id AND test_id = :test_id
+            SELECT bm.student_id, bm.test_id, t.num_questions, bm.num_correct, bm.import_ids
+            FROM best_marks_of_student_per_test bm
+            JOIN tests t ON bm.test_id = t.test_id
+            WHERE bm.student_id = :student_id AND bm.test_id = :test_id;
             """
         values = {
             "student_id": student_id,
@@ -178,25 +214,39 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
     async def __calculate_aggregated_test_result(cls, conn: AsyncConnection, test_id: str) -> AggregatedTestResultDTO | None:
         """
             Using STDDEV_POP instead of STDDEV because we are using the whole population.
+            It's implemented in 2 queries for clarity (could do a join but...).
         """
+
+        query = """
+            SELECT num_questions FROM tests WHERE test_id = :test_id;
+        """
+        result = await conn.execute(sql_text(query), {'test_id': test_id})
+        row = result.fetchone()
+        if row is None:
+            return None
+
+        num_questions = int(row[0])
+
+        if num_questions == 0:
+            return None
+
         query= """
             SELECT 
-                AVG(num_correct::float / num_questions::float) AS mean,
-                STDDEV_POP(num_correct::float / num_questions::float) AS stddev,
-                MIN(num_correct::float / num_questions::float) AS min,
-                MAX(num_correct::float / num_questions::float) AS max,
-                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY num_correct::float / num_questions::float) AS p25,
-                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY num_correct::float / num_questions::float) AS p50,
-                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY num_correct::float / num_questions::float) AS p75,
+                AVG(num_correct::float / :num_questions ::float) AS mean,
+                STDDEV_POP(num_correct::float / :num_questions ::float) AS stddev,
+                MIN(num_correct::float / :num_questions ::float) AS min,
+                MAX(num_correct::float / :num_questions ::float) AS max,
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY num_correct::float / :num_questions ::float) AS p25,
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY num_correct::float / :num_questions ::float) AS p50,
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY num_correct::float / :num_questions ::float) AS p75,
                 COUNT(*) AS count
             FROM 
                 best_marks_of_student_per_test
             WHERE
-                test_id = :test_id
-                AND num_questions > 0;
+                test_id = :test_id;
             """ 
         
-        result = await conn.execute(sql_text(query), {'test_id': test_id})
+        result = await conn.execute(sql_text(query), {'test_id': test_id, 'num_questions': num_questions})
         row = result.fetchone()
         if row is None:
             return None
@@ -238,11 +288,15 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
         else:
             instance = await cls._get_instance()
             query_delete = """
-                    DELETE FROM best_marks_of_student_per_test
+                    DELETE FROM best_marks_of_student_per_test;
+                    """
+            query_delete_tests = """
+                    DELETE FROM tests;
                     """
             async with instance.engine.begin() as conn:  # type: ignore
                 conn: AsyncConnection
                 await conn.execute(sql_text(query_delete))
+                await conn.execute(sql_text(query_delete_tests))
 
     @classmethod
     async def count_all_rows(cls) -> int:
