@@ -2,8 +2,9 @@ from datetime import datetime
 import unittest
 import time
 import uuid
+import numpy as np
 
-from exams_analytics.application.marks.marks_dtos import MarkDTO
+from exams_analytics.application.marks.marks_dtos import AggregatedTestResultDTO, MarkDTO
 from exams_analytics.interface.pg_db.best_marks_respository_pg import BestMarksRepositoryPG
 
 
@@ -17,7 +18,7 @@ class TestBestMarksRepositoryPG(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await BestMarksRepositoryPG._instance.engine.dispose() #type: ignore
         pass
-
+    
     async def test_insert_none(self):
         await BestMarksRepositoryPG.bulk_insert_keeping_max_values_when_same_student_and_test_id([])
 
@@ -120,7 +121,53 @@ class TestBestMarksRepositoryPG(unittest.IsolatedAsyncioTestCase):
         start = time.time()
         await BestMarksRepositoryPG.bulk_insert_keeping_max_values_when_same_student_and_test_id(marks)
         print("10K marks with all conflicts took in ms:", int((time.time()-start)*1000))
+    
+    async def test_aggregates(self):
+        marks = []
+        import_uuid = uuid.uuid1()
+        NUM_QUESTIONS = 10
+        NUM_STUDENTS_PER_MARK = 10
+        MARK_1 = 5
+        MARK_2 = 7
+        MARK_3 = 10
+        scores = []
+        for i in range(NUM_STUDENTS_PER_MARK):
+            marks.append(MarkDTO(student_id="A"+str(i), test_id="test0", num_questions=NUM_QUESTIONS, num_correct=MARK_1, import_ids=[import_uuid]))
+            scores.append(MARK_1 / NUM_QUESTIONS)
+        
+        for i in range(NUM_STUDENTS_PER_MARK):
+            marks.append(MarkDTO(student_id="B"+str(i), test_id="test0", num_questions=NUM_QUESTIONS, num_correct=MARK_2, import_ids=[import_uuid]))
+            scores.append(MARK_2 / NUM_QUESTIONS)
+        
+        for i in range(NUM_STUDENTS_PER_MARK):
+            marks.append(MarkDTO(student_id="C"+str(i), test_id="test0", num_questions=NUM_QUESTIONS, num_correct=MARK_3, import_ids=[import_uuid]))
+            scores.append(MARK_3 / NUM_QUESTIONS)
+        
+        await BestMarksRepositoryPG.bulk_insert_keeping_max_values_when_same_student_and_test_id(marks)
+        result : AggregatedTestResultDTO | None = await BestMarksRepositoryPG.calculate_aggregated_test_result("test0")
+        self.assertIsNotNone(result, "The result is None")
+        
+        # Calculating statistics
+        mean = np.mean(scores)
+        stddev = np.std(scores)
+        minimum = np.min(scores)
+        maximum = np.max(scores)
+        p25 = np.percentile(scores, 25)
+        p50 = np.percentile(scores, 50)
+        p75 = np.percentile(scores, 75)
+        count = len(scores)
 
+        if result is not None:
+            self.assertAlmostEqual(result.mean, mean, places=5)
+            self.assertAlmostEqual(result.stddev, stddev, places=5)
+            self.assertAlmostEqual(result.min, minimum, places=5)
+            self.assertAlmostEqual(result.max, maximum, places=5)
+            self.assertAlmostEqual(result.p25, p25, places=5)
+            self.assertAlmostEqual(result.p50, p50, places=5)
+            self.assertAlmostEqual(result.p75, p75, places=5)
+            self.assertEqual(result.count, count, "The count is not the same")
+
+        
 
 print("Test repo marks")
 if __name__ == '__main__':

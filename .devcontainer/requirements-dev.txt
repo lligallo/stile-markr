@@ -1,1 +1,2 @@
 aiohttp==3.10.9     #for testing the API in unittests
+numpy==2.1.2

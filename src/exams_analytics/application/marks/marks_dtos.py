@@ -27,3 +27,14 @@ class MarkDTO(BaseModel):
         if len(v) > 50:
             raise ValueError('test_id must be 50 characters or fewer')
         return v
+
+class AggregatedTestResultDTO(BaseModel):
+    test_id: str
+    mean: float
+    stddev: float
+    min: float
+    max: float
+    p25: float
+    p50: float
+    p75: float
+    count: int

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime, ARRAY, Text
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime, ARRAY, Text, Index
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from sqlalchemy.sql import func
@@ -27,5 +27,6 @@ best_marks_of_student_per_test : Table = Table(
     Column('num_correct', Integer, nullable=False),
     Column('import_ids', ARRAY(UUID), nullable=False),  # origin of the marks that were considered to calculate this row
     Column('created_at', DateTime(timezone=True), server_default=func.now(), nullable=False),
-    Column('updated_at', DateTime(timezone=True), onupdate=func.now(), nullable=False)
+    Column('updated_at', DateTime(timezone=True), onupdate=func.now(), nullable=False),
+    Index('idx_test_id', 'test_id')  # Index on test_id
 )
