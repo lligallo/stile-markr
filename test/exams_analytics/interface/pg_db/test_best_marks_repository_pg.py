@@ -142,6 +142,9 @@ class TestBestMarksRepositoryPG(unittest.IsolatedAsyncioTestCase):
         for i in range(NUM_STUDENTS_PER_MARK):
             marks.append(MarkDTO(student_id="C"+str(i), test_id="test0", num_questions=NUM_QUESTIONS, num_correct=MARK_3, import_ids=[import_uuid]))
             scores.append(MARK_3 / NUM_QUESTIONS)
+
+        test_2 = "TEST_DIFFERENT"
+        marks.append(MarkDTO(student_id="A_DIFFERENT_ONE", test_id=test_2, num_questions=10, num_correct=10, import_ids=[import_uuid]))
         
         await BestMarksRepositoryPG.bulk_insert_keeping_max_values_when_same_student_and_test_id(marks)
         result : AggregatedTestResultDTO | None = await BestMarksRepositoryPG.calculate_aggregated_test_result("test0")
@@ -166,6 +169,19 @@ class TestBestMarksRepositoryPG(unittest.IsolatedAsyncioTestCase):
             self.assertAlmostEqual(result.p50, p50, places=5)
             self.assertAlmostEqual(result.p75, p75, places=5)
             self.assertEqual(result.count, count, "The count is not the same")
+        
+        #now the other test
+        result : AggregatedTestResultDTO | None = await BestMarksRepositoryPG.calculate_aggregated_test_result(test_2)
+        self.assertIsNotNone(result, "The result is None")
+        if result is not None:
+            self.assertAlmostEqual(result.mean, 1, places=5)
+            self.assertAlmostEqual(result.stddev, 0, places=5)
+            self.assertAlmostEqual(result.min, 1, places=5)
+            self.assertAlmostEqual(result.max, 1, places=5)
+            self.assertAlmostEqual(result.p25, 1, places=5)
+            self.assertAlmostEqual(result.p50, 1, places=5)
+            self.assertAlmostEqual(result.p75, 1, places=5)
+            self.assertEqual(result.count, 1, "The count is not the same")
 
     async def test_aggregates_100K(self):
         import_uuid = uuid.uuid1()
@@ -188,3 +204,4 @@ class TestBestMarksRepositoryPG(unittest.IsolatedAsyncioTestCase):
 print("Test repo marks")
 if __name__ == '__main__':
     unittest.main()
+
