@@ -95,11 +95,8 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
         for mark in marks:
             key = f"{mark.student_id}_{mark.test_id}"
             if key in dict_best_marks:
-                if mark.num_questions > dict_best_marks[key].num_questions:
+                if mark.num_correct > dict_best_marks[key].num_correct:
                     dict_best_marks[key] = mark
-                elif mark.num_questions == dict_best_marks[key].num_questions:
-                    if mark.num_correct > dict_best_marks[key].num_correct:
-                        dict_best_marks[key] = mark
             else:
                 dict_best_marks[key] = mark
         return list(dict_best_marks.values())
