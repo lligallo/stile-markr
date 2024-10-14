@@ -6,10 +6,10 @@ from exams_analytics.interface.pg_db.raw_import_repository_pg import RawImportRe
 class TestHttpRestFacade(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
-        await RawImportRepositoryPG.delete_all_rows_only_for_testing()
+        pass
 
     async def asyncTearDown(self):
-        await RawImportRepositoryPG._instance.engine.dispose() #type: ignore
+        pass
     
     async def test_content_type_correct(self):
         async with aiohttp.ClientSession() as session:
@@ -17,6 +17,15 @@ class TestHttpRestFacade(unittest.IsolatedAsyncioTestCase):
                 response_text = await response.text()
                 print("Response:", response_text)
                 self.assertEqual(response.status, 415)
+    
+    async def test_incorrect_xml(self):
+        xml_data = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><root><element>Value</elementI></root>"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post("http://localhost:8082/import", data=xml_data, headers={"Content-Type": "text/xml+markr"}) as response:
+                response_text = await response.text()
+                print("Response:", response_text)
+                self.assertEqual(response.status, 400)  # Check if the response is successful
     
     async def test_do_a_post(self):
         xml_data = """<?xml version="1.0" encoding="UTF-8" ?>

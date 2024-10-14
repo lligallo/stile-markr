@@ -41,6 +41,7 @@
     },
     "python.formatting.provider": "none",
     "cSpell.words": [
+        "sqlalchemy"
     ],
 
     /*"editor.formatOnSave": true,

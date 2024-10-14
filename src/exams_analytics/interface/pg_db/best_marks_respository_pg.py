@@ -1,0 +1,200 @@
+
+
+from typing import Dict, List
+import os
+
+import logging
+from sqlalchemy.ext.asyncio import AsyncConnection
+from sqlalchemy import text as sql_text
+
+from exams_analytics.application.marks.best_marks_repository_abstract import BestMarksRepositoryAbstract
+from exams_analytics.application.marks.marks_dtos import MarkDTO
+from exams_analytics.interface.pg_db.database_engine import DatabaseEngine
+
+logger = logging.getLogger(__name__)
+
+class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
+    """
+    This repository stores the maximum marks per each student and test.
+    It allows inserting new marks in bulk.
+    See ADR-03 for implementation decisions
+    """
+    _instance = None
+    MAX_MARKS_TO_INSERT = 10_000
+    SIZE_MARK_CHUNK_WHEN_BULK_INSERT = 1000
+
+    def __init__(self):
+        self.engine = DatabaseEngine.get_engine()
+
+    @classmethod
+    async def _get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+    
+
+    @classmethod
+    async def __bulk_insert_marks_chunk(cls, conn: AsyncConnection, marks_chunk: List[MarkDTO]) -> None:
+        """
+        Inserts a chunk of marks into the database.
+            - If a mark already exists for a student and test, it will keep the maximum values.
+            - We use the flat_parameters to avoid SQL injection.
+
+        NOTE: If the "algorithm" to keep the maximum values changes needs to be changed you have to change it here and in the method __filter_repeated_marks_keeping_maximum
+        """
+
+        sql_query = """
+            INSERT INTO best_marks_of_student_per_test (student_id, test_id, num_questions, num_correct, import_ids)
+            VALUES {}
+            ON CONFLICT (student_id, test_id)
+            DO UPDATE SET
+                num_questions = GREATEST(excluded.num_questions, best_marks_of_student_per_test.num_questions),
+                num_correct = CASE
+                    WHEN excluded.num_questions > best_marks_of_student_per_test.num_questions
+                        THEN excluded.num_correct
+                    WHEN excluded.num_questions = best_marks_of_student_per_test.num_questions
+                        THEN GREATEST(excluded.num_correct, best_marks_of_student_per_test.num_correct)
+                    ELSE best_marks_of_student_per_test.num_correct
+                END,
+                import_ids = ARRAY(
+                    SELECT DISTINCT unnest(best_marks_of_student_per_test.import_ids || excluded.import_ids)
+                )
+        """
+
+        # We will be happier if we could just pass the list of marks as a parameter to the query, but we can't. We have to specify the placeholders in the query.
+        #IMPORTANT: We do it this way 'cause then we can use the execute it at be protected from SQL injection.
+        placeholders = []
+        parameters = []
+
+        index = 0
+        for mark in marks_chunk:
+            placeholders.append(f"(:student_id_{index}, :test_id_{index}, :num_questions_{index}, :num_correct_{index}, :import_ids_{index})")
+            parameters.extend([
+                {"student_id_" + str(index): mark.student_id},
+                {"test_id_" + str(index): mark.test_id},
+                {"num_questions_" + str(index): mark.num_questions},
+                {"num_correct_" + str(index): mark.num_correct},
+                #now we add the import_id as an array
+                {"import_ids_" + str(index): [import_id for import_id in mark.import_ids]}
+            ])
+            index += 1
+
+        # Join the placeholders into a single string
+        values_sql = ", ".join(placeholders)
+
+        # Combine the base query with the values string
+        full_query = sql_query.format(values_sql)
+
+        # Flatten parameters into one dictionary
+        flat_parameters = {k: v for d in parameters for k, v in d.items()}
+
+        logger.debug("Executing SQL Query: %s with Parameters: %s", full_query, flat_parameters)
+
+        # Execute the single query with all the parameters
+        await conn.execute(sql_text(full_query), flat_parameters)
+
+    @classmethod
+    def __filter_repeated_marks_keeping_maximum(cls, marks: List[MarkDTO]) -> List[MarkDTO]:
+        """
+            Filters the repeated marks in the list.
+            NOTE: If the "algorithm" to keep the maximum values changes needs to be changed you have to change it here and in the method __bulk_insert_marks_chunk
+        """
+        dict_best_marks : Dict[str,MarkDTO] = {}
+        for mark in marks:
+            key = f"{mark.student_id}_{mark.test_id}"
+            if key in dict_best_marks:
+                if mark.num_questions > dict_best_marks[key].num_questions:
+                    dict_best_marks[key] = mark
+                elif mark.num_questions == dict_best_marks[key].num_questions:
+                    if mark.num_correct > dict_best_marks[key].num_correct:
+                        dict_best_marks[key] = mark
+            else:
+                dict_best_marks[key] = mark
+        return list(dict_best_marks.values())
+
+    @classmethod
+    async def _bulk_insert_marks(cls, conn: AsyncConnection, marks: List[MarkDTO]) -> None:
+        if len(marks) == 0:
+            return
+        
+        # When inserting a new mark, we will have to check if it's better than the previous one.
+        # we have to always take the maximum of num_questions and num_correct, independently
+
+        # We can rely on sql ON CONFLICT to update the values that are in the database and get the maximum of the values.
+        
+        # But we have to make sure that in our insert statement are no repeated values (2 rows about to be inserted cannot be on conflict with each other)
+        # We could solve that with a more complicated query (like creating a temporary table) but for clarity we will do it in python.
+        # If in the future this is a common case, we can modify it and rely into a more complex query.
+        
+        best_marks = cls.__filter_repeated_marks_keeping_maximum(marks)
+
+        #time to insert the marks
+        #But...There is a limit on the number of parameters that can be passed in a query, so we will break the list of marks into chunks of 1000
+        for i in range(0, len(best_marks), cls.SIZE_MARK_CHUNK_WHEN_BULK_INSERT):
+            logger.debug("Inserting chunk of marks from %d to %d", i, i+cls.SIZE_MARK_CHUNK_WHEN_BULK_INSERT)
+            marks_chunk = best_marks[i:i+cls.SIZE_MARK_CHUNK_WHEN_BULK_INSERT]
+            await cls.__bulk_insert_marks_chunk(conn, marks_chunk)
+    
+    @classmethod
+    async def bulk_insert_keeping_max_values_when_same_student_and_test_id(cls, marks: List[MarkDTO]) -> None:
+        if len(marks) > cls.MAX_MARKS_TO_INSERT:
+            logger.warning(f"Someone requested to insert too many marks. The maximum is {cls.MAX_MARKS_TO_INSERT}. This value was chosen as as resonable limit. If you see this message reconsider this limit.")
+            raise ValueError(f"Too many marks to insert. The maximum is {cls.MAX_MARKS_TO_INSERT}")
+        if len(marks) > cls.MAX_MARKS_TO_INSERT // 2:
+            logger.warning(f"Someone requested to insert a lot of marks {cls.MAX_MARKS_TO_INSERT}. Although it is within the limit {cls.MAX_MARKS_TO_INSERT}, we may want to review this limit.")
+        
+        instance = await cls._get_instance()
+        async with instance.engine.begin() as conn: # type: ignore
+            conn: AsyncConnection
+            await cls._bulk_insert_marks(conn, marks)
+    
+
+    @classmethod
+    async def __get_maximum_mark_by_student_and_test(cls, conn: AsyncConnection, student_id: str, test_id: str) -> None | MarkDTO:
+        query = """
+            SELECT student_id, test_id, num_questions, num_correct, import_ids FROM best_marks_of_student_per_test
+            WHERE student_id = :student_id AND test_id = :test_id
+            """
+        values = {
+            "student_id": student_id,
+            "test_id": test_id
+        }
+        result = await conn.execute(sql_text(query), values)
+        row = result.fetchone()
+        if row is None:
+            return None
+        else:
+            return MarkDTO(student_id = row[0], test_id = row[1], num_questions = row[2], num_correct = row[3], import_ids = row[4])
+
+    @classmethod
+    async def get_maximum_mark_by_student_and_test(cls, student_id: str, test_id: str) -> None | MarkDTO:
+        instance = await cls._get_instance()
+        async with instance.engine.begin() as conn: # type: ignore
+            conn: AsyncConnection
+            return await cls.__get_maximum_mark_by_student_and_test(conn, student_id, test_id)
+
+    @classmethod
+    async def delete_all_rows_only_for_testing(cls):
+        #only executes it if it's a test on a local dev machine
+        if (os.getenv('DEPLOYMENT')=='PRODUCTION' or os.getenv('DEPLOYMENT')=='STAGING'):
+            raise ValueError("This method should only be used for testing")
+        else:
+            instance = await cls._get_instance()
+            query_delete = """
+                    DELETE FROM best_marks_of_student_per_test
+                    """
+            async with instance.engine.begin() as conn:  # type: ignore
+                conn: AsyncConnection
+                await conn.execute(sql_text(query_delete))
+
+    @classmethod
+    async def count_all_rows(cls) -> int:
+        instance = await cls._get_instance()
+        async with instance.engine.connect() as conn: # type: ignore
+            conn: AsyncConnection
+            query = """
+                SELECT COUNT(*) FROM best_marks_of_student_per_test
+            """
+            result = await conn.execute(sql_text(query))
+            row = result.fetchone()
+            return row[0]

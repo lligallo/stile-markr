@@ -4,7 +4,6 @@
 - docker-compose up         <- PENDING TO CONFIGURE THE DB with proper security
 - the http server is mapped in port 8085
 
-
 # Approach
 Most of my reasoning is in ADR-2, but here is a summary:
 - The future product is about generating analytics of scores, it is not about treating scan particularities (or any of the potentially hundreds of test systems out there).
@@ -14,6 +13,13 @@ Most of my reasoning is in ADR-2, but here is a summary:
 - ASYNCIO + QUART + HYPERCORN: Allows the project to scale using tasks (not that we need now, but, again, I'm used to and I think it's more future proof than doing it with threads)
 - ALEMBIC for migrations
 - Task manager: https://github.com/users/lligallo/projects/6/views/1
+
+## File structure
+- .devcontainer: definition of the dev environment for vscode
+- .vscode: shared settings for the team in vscode
+- ADR: Crud decisions taken during development
+- src/exams_analytics: Source code following hexagonal architecture
+- test: tests
 
 # Comments for the Boss
 - student_number(s) -2319 and 2353- that have different names with the same id
