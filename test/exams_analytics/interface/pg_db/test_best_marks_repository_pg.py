@@ -167,6 +167,22 @@ class TestBestMarksRepositoryPG(unittest.IsolatedAsyncioTestCase):
             self.assertAlmostEqual(result.p75, p75, places=5)
             self.assertEqual(result.count, count, "The count is not the same")
 
+    async def test_aggregates_100K(self):
+        import_uuid = uuid.uuid1()
+        num_marks = 0
+        start = time.time()
+        for j in range(10):
+            marks = []
+            for i in range(10_000):
+                marks.append(MarkDTO(student_id=f"{j}-{i}", test_id="test0", num_questions=20, num_correct=i, import_ids=[import_uuid]))
+                num_marks += 1
+            await BestMarksRepositoryPG.bulk_insert_keeping_max_values_when_same_student_and_test_id(marks)
+            
+        print(f"inserting {num_marks} marks took in ms:", int((time.time()-start)*1000))
+
+        start = time.time()
+        result : AggregatedTestResultDTO | None = await BestMarksRepositoryPG.calculate_aggregated_test_result("test0")
+        print(f"calculating {result.count} marks took in ms:", int((time.time()-start)*1000))   #type: ignore
         
 
 print("Test repo marks")

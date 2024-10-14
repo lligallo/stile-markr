@@ -27,5 +27,6 @@ We have to calculate:
 
 ## Consequences
 - I added an index to quickly access test_id
+- I did some testing with a test with 100K marks and it takes 20ms to calculate the aggregate. I think it is not realistic since all the data would be in RAM.
 
 
