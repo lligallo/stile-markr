@@ -7,7 +7,8 @@ services:
       - .env
     #command: sleep infinity  # Keep the container running
     depends_on:
-      - markr_postgres
+      markr_postgres:
+        condition: service_healthy    #Sometimes the postgres container takes time to start
     ports:
       - "8085:8082"
   markr_postgres:
@@ -24,6 +25,10 @@ services:
     #command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/server.key"]
     ports:
       - "5434:5432"  # This is done to access the database from the host machine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER} -d ${PG_DBNAME}"]
+      interval: 5s
+      retries: 5
 
 volumes:
   postgres_data:
