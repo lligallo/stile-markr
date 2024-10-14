@@ -2,13 +2,13 @@
 
 from typing import Dict, List
 import os
-
+from uuid import UUID
 import logging
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy import text as sql_text
 
 from exams_analytics.application.marks.best_marks_repository_abstract import BestMarksRepositoryAbstract
-from exams_analytics.application.marks.marks_dtos import AggregatedTestResultDTO, MarkDTO
+from exams_analytics.application.marks.marks_dtos import AggregatedTestResultDTO, MarkDTO, MarkWithImportIdsDTO
 from exams_analytics.interface.pg_db.database_engine import DatabaseEngine
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
     
 
     @classmethod
-    async def __bulk_insert_marks_chunk(cls, conn: AsyncConnection, marks_chunk: List[MarkDTO]) -> None:
+    async def __bulk_insert_marks_chunk(cls, conn: AsyncConnection, marks_chunk: List[MarkDTO], import_vault_id: UUID) -> None:
         """
         Inserts a chunk of marks into the database.
             - If a mark already exists for a student and test, it will keep the maximum values.
@@ -75,7 +75,7 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
                 {"num_questions_" + str(index): mark.num_questions},
                 {"num_correct_" + str(index): mark.num_correct},
                 #now we add the import_id as an array
-                {"import_ids_" + str(index): [import_id for import_id in mark.import_ids]}
+                {"import_ids_" + str(index): [import_vault_id]}
             ])
             index += 1
 
@@ -113,7 +113,7 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
         return list(dict_best_marks.values())
 
     @classmethod
-    async def _bulk_insert_marks(cls, conn: AsyncConnection, marks: List[MarkDTO]) -> None:
+    async def _bulk_insert_marks(cls, conn: AsyncConnection, marks: List[MarkDTO], import_vault_id : UUID) -> None:
         if len(marks) == 0:
             return
         
@@ -133,10 +133,10 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
         for i in range(0, len(best_marks), cls.SIZE_MARK_CHUNK_WHEN_BULK_INSERT):
             logger.debug("Inserting chunk of marks from %d to %d", i, i+cls.SIZE_MARK_CHUNK_WHEN_BULK_INSERT)
             marks_chunk = best_marks[i:i+cls.SIZE_MARK_CHUNK_WHEN_BULK_INSERT]
-            await cls.__bulk_insert_marks_chunk(conn, marks_chunk)
+            await cls.__bulk_insert_marks_chunk(conn, marks_chunk, import_vault_id)
     
     @classmethod
-    async def bulk_insert_keeping_max_values_when_same_student_and_test_id(cls, marks: List[MarkDTO]) -> None:
+    async def bulk_insert_keeping_max_values_when_same_student_and_test_id(cls, marks: List[MarkDTO], import_vault_id : UUID) -> None:
         if len(marks) > cls.MAX_MARKS_TO_INSERT:
             logger.warning(f"Someone requested to insert too many marks. The maximum is {cls.MAX_MARKS_TO_INSERT}. This value was chosen as as resonable limit. If you see this message reconsider this limit.")
             raise ValueError(f"Too many marks to insert. The maximum is {cls.MAX_MARKS_TO_INSERT}")
@@ -146,11 +146,11 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
         instance = await cls._get_instance()
         async with instance.engine.begin() as conn: # type: ignore
             conn: AsyncConnection
-            await cls._bulk_insert_marks(conn, marks)
+            await cls._bulk_insert_marks(conn, marks, import_vault_id)
     
 
     @classmethod
-    async def __get_maximum_mark_by_student_and_test(cls, conn: AsyncConnection, student_id: str, test_id: str) -> None | MarkDTO:
+    async def __get_maximum_mark_by_student_and_test(cls, conn: AsyncConnection, student_id: str, test_id: str) -> None | MarkWithImportIdsDTO:
         query = """
             SELECT student_id, test_id, num_questions, num_correct, import_ids FROM best_marks_of_student_per_test
             WHERE student_id = :student_id AND test_id = :test_id
@@ -164,10 +164,10 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
         if row is None:
             return None
         else:
-            return MarkDTO(student_id = row[0], test_id = row[1], num_questions = row[2], num_correct = row[3], import_ids = row[4])
+            return MarkWithImportIdsDTO(student_id = row[0], test_id = row[1], num_questions = row[2], num_correct = row[3], import_ids = row[4])
 
     @classmethod
-    async def get_maximum_mark_by_student_and_test(cls, student_id: str, test_id: str) -> None | MarkDTO:
+    async def get_maximum_mark_by_student_and_test(cls, student_id: str, test_id: str) -> None | MarkWithImportIdsDTO:
         instance = await cls._get_instance()
         async with instance.engine.begin() as conn: # type: ignore
             conn: AsyncConnection
