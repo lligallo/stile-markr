@@ -42,7 +42,7 @@ async def index():
         return f"There was a problem connecting with the database: {str(e)}", 500
     
 
-def __parse_xml_to_list_marks(xml_str: str, import_id : UUID) -> list[MarkDTO]:
+def __parse_xml_to_list_marks(xml_str: str) -> list[MarkDTO]:
     """
     Parses the XML string and returns a list of MarkDTO objects
     """
@@ -56,7 +56,7 @@ def __parse_xml_to_list_marks(xml_str: str, import_id : UUID) -> list[MarkDTO]:
                 raise Exception("Test ID is missing")
             available = int(mcq_result.find('summary-marks').get('available'))   #type: ignore
             obtained = int(mcq_result.find('summary-marks').get('obtained'))     #type: ignore
-            mark_dtos.append(MarkDTO(student_id=student_number, test_id=test_id, num_questions=available, num_correct=obtained, import_ids=[import_id]))
+            mark_dtos.append(MarkDTO(student_id=student_number, test_id=test_id, num_questions=available, num_correct=obtained))
     except ET.ParseError as e:
         raise Exception(f"XML Parsing Error when trying to parse the mark in position {len(mark_dtos)+1}: {str(e)}. Line {e.position[0]}, Column {e.position[1]}. Code {e.code}. Msg: {e.msg}")
     return mark_dtos
@@ -80,7 +80,7 @@ async def import_marks():
         import_id : UUID = await ImportVaultService.import_raw_data(ImportOrigin.SCANNER_SYSTEM, xml_str)
 
         try:
-            mark_dtos : List[MarkDTO] = __parse_xml_to_list_marks(xml_str, import_id)
+            mark_dtos : List[MarkDTO] = __parse_xml_to_list_marks(xml_str)
         except Exception as e:
             return f"Error parsing the XML: {str(e)}", 400
         
@@ -89,7 +89,7 @@ async def import_marks():
         if len(mark_dtos) == 0:
             return "No marks found in the XML. BAD REQUEST", 400
 
-        await MarksService.insert_marks(mark_dtos)
+        await MarksService.insert_marks(mark_dtos, import_id)
 
         return f"Data parsed and incorporated into DB, import id is {import_id}", 200
 

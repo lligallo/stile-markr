@@ -47,9 +47,9 @@ This structure allows us to separate the logic of the application from the data 
 # Development
 - I used .vscode. The .devcontainer is configured so the database is up and you are developing within the machine defined at .devcontainers/Dockerfile.dev
 - ./run_markr_server_local.sh -> Executes the http server with the parameters of .env file
-- ./run_markr_server.sh -> Executes the http server without loading any env variables
-- ./run_python_unit_tests.sh -> Executes some tests
-- ./run_python_http_endpoints_tests.sh -> Executes tests by calling http endpoints (full integration)
+- ./run_markr_server.sh -> Executes the http server without loading any env variables. It first updates the database using alembic.
+- ./run_python_unit_tests.sh -> Executes some tests. It first update the database using alembic (uses another database for testing).
+- ./run_python_http_endpoints_tests.sh -> Executes tests by calling http endpoints, you need to have the server running
 
 ## Alembic 
 - Generate a migration: set -a; source .env; set +a; alembic revision --autogenerate -m "DESCRIPTION"
