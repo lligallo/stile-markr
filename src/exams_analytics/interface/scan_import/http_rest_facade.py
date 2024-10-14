@@ -50,7 +50,7 @@ def __parse_xml_to_list_marks(xml_str: str, import_id : UUID) -> list[MarkDTO]:
     mark_dtos = []
     try:
         for mcq_result in root.findall('mcq-test-result'):
-            student_number = int(mcq_result.find('student-number').text)    #type: ignore
+            student_number : str = mcq_result.find('student-number').text    #type: ignore
             test_id = mcq_result.find('test-id').text                       #type: ignore
             if not test_id:
                 raise Exception("Test ID is missing")

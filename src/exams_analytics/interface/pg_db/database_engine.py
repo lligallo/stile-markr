@@ -31,17 +31,3 @@ class DatabaseEngine:
 
         return cls._engine
 
-def log_operation(threshold_ms: int| None = None):
-    def decorator(func):
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
-            start_time = time.time()
-            result = await func(*args, **kwargs)
-            end_time = time.time()
-            duration_ms = (end_time - start_time) * 1000
-            logger.info(f"{func.__name__} took(ms): {int(duration_ms)}")
-            if threshold_ms is not None and duration_ms > threshold_ms:
-                logger.warning(f"{func.__name__} took (ms): {int(duration_ms)}, which exceeds the threshold of {threshold_ms} ms")
-            return result
-        return wrapper
-    return decorator
