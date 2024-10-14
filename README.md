@@ -57,6 +57,7 @@ This structure allows us to separate the logic of the application from the data 
 # TODO:
 - Add documentation for the API
 - Add configuration to the logging system (now is set to the Basic one)
+- KNOWN BUG: The updated_at of the database doesn't get updated automatically
 
 # Thoughts on how to further scale (on aggregations)
 - Although the server as is can handle many aggregations (I haven't done performance test but, with the test_id index that is there I would expect to be able to aggregate millions with less than a second -with a quick test: in my computer takes 300ms to aggregate 1 million even restarting the PG, and when using an index to filter 1000 tests, it takes way less than 10 ms), it would be good to monitor how long it takes to do the aggregation. 
