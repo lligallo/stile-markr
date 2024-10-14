@@ -30,11 +30,11 @@ class MarkDTO(BaseModel):
 
 class AggregatedTestResultDTO(BaseModel):
     test_id: str
-    mean: float
-    stddev: float
-    min: float
-    max: float
-    p25: float
-    p50: float
-    p75: float
-    count: int
+    mean: float             # goes from 0 to 1
+    stddev: float           # goes from 0 to 1
+    min: float              # goes from 0 to 1
+    max: float              # goes from 0 to 1
+    p25: float              # goes from 0 to 1
+    p50: float              # goes from 0 to 1
+    p75: float              # goes from 0 to 1
+    count: int              # goes from 0 to 1
