@@ -40,9 +40,8 @@ async def run_http_server_task():
 async def main():
     sys.excepthook = handle_exception
     
-    logging.basicConfig()
-    log_level = os.environ.get('LOGLEVEL', 'WARNING').upper()
-    logging.getLogger().setLevel(log_level)
+    log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
+    logging.basicConfig(stream=sys.stdout,level=log_level)
 
     logger.info("Starting main")
 
