@@ -22,11 +22,22 @@ import_vault_imports : Table = Table(
 best_marks_of_student_per_test : Table = Table(
     'best_marks_of_student_per_test', metadata,
     Column('student_id', String(50), primary_key=True),
-    Column('test_id', String(50), primary_key=True),
-    Column('num_questions', Integer, nullable=False),        
+    Column('test_id', String(50), primary_key=True),        
     Column('num_correct', Integer, nullable=False),
     Column('import_ids', ARRAY(UUID), nullable=False),  # origin of the marks that were considered to calculate this row
     Column('created_at', DateTime(timezone=True), server_default=func.now(), nullable=False),
     Column('updated_at', DateTime(timezone=True), onupdate=func.now(), nullable=False),
     Index('idx_test_id', 'test_id')  # Index on test_id
+)
+
+"""
+    Contains the details of the tests
+"""
+tests : Table = Table(
+    'tests', metadata,
+    Column('test_id', String(50), primary_key=True),
+    Column('num_questions', Integer, nullable=False),
+    Column('import_ids', ARRAY(UUID), nullable=False),  # origin of the marks that were considered to calculate this row
+    Column('created_at', DateTime(timezone=True), server_default=func.now(), nullable=False),
+    Column('updated_at', DateTime(timezone=True), onupdate=func.now(), nullable=False),
 )
