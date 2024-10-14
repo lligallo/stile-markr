@@ -186,3 +186,15 @@ class BestMarksRepositoryPG(BestMarksRepositoryAbstract):
             async with instance.engine.begin() as conn:  # type: ignore
                 conn: AsyncConnection
                 await conn.execute(sql_text(query_delete))
+
+    @classmethod
+    async def count_all_rows(cls) -> int:
+        instance = await cls._get_instance()
+        async with instance.engine.connect() as conn: # type: ignore
+            conn: AsyncConnection
+            query = """
+                SELECT COUNT(*) FROM best_marks_of_student_per_test
+            """
+            result = await conn.execute(sql_text(query))
+            row = result.fetchone()
+            return row[0]
